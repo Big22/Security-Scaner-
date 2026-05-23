@@ -1,0 +1,1059 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#0a0e1a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="description" content="SecuritasPRO - Sistema de Gestión de Seguridad Privada">
+<title>SecuritasPRO</title>
+<link rel="manifest" href="manifest.json">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=Share+Tech+Mono&family=Exo+2:wght@300;400;600;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<style>
+  :root {
+    --bg-primary: #070b14;
+    --bg-secondary: #0d1220;
+    --bg-card: #111827;
+    --bg-glass: rgba(17,24,39,0.85);
+    --accent: #00d4ff;
+    --accent2: #ff6b00;
+    --accent3: #00ff88;
+    --danger: #ff2d55;
+    --warning: #ffd60a;
+    --text-primary: #e8eaf0;
+    --text-muted: #6b7a99;
+    --border: rgba(0,212,255,0.15);
+    --border-glow: rgba(0,212,255,0.4);
+    --shadow-glow: 0 0 30px rgba(0,212,255,0.15);
+    --online: #00ff88;
+    --offline: #ff2d55;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html,body { width:100%; height:100%; overflow:hidden; background:var(--bg-primary); }
+  body { font-family:'Exo 2',sans-serif; color:var(--text-primary); }
+
+  /* SCANLINES OVERLAY */
+  body::before {
+    content:''; position:fixed; inset:0; pointer-events:none; z-index:9999;
+    background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.03) 2px, rgba(0,0,0,0.03) 4px);
+  }
+
+  /* NETWORK STATUS BAR */
+  #networkBar {
+    position:fixed; top:0; left:0; right:0; height:28px; z-index:10000;
+    display:flex; align-items:center; justify-content:space-between; padding:0 16px;
+    font-family:'Share Tech Mono',monospace; font-size:10px;
+    background:rgba(7,11,20,0.95); border-bottom:1px solid var(--border);
+    transition:all .3s;
+  }
+  #networkBar.offline { background:rgba(255,45,85,0.15); border-color:var(--danger); }
+  .net-indicator { display:flex; align-items:center; gap:6px; }
+  .net-dot { width:7px; height:7px; border-radius:50%; animation:pulse 2s infinite; }
+  .net-dot.online { background:var(--online); }
+  .net-dot.offline { background:var(--danger); animation:none; }
+  @keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.5;transform:scale(1.3)} }
+  .net-signal { display:flex; gap:2px; align-items:flex-end; }
+  .sig-bar { width:4px; background:var(--text-muted); border-radius:1px; }
+  .sig-bar.active { background:var(--accent); }
+  .sig-bar:nth-child(1){height:4px}
+  .sig-bar:nth-child(2){height:7px}
+  .sig-bar:nth-child(3){height:10px}
+  .sig-bar:nth-child(4){height:13px}
+
+  /* APP CONTAINER */
+  #app { position:fixed; inset:0; top:28px; display:flex; flex-direction:column; }
+
+  /* SCREENS */
+  .screen { position:absolute; inset:0; display:none; flex-direction:column; overflow:hidden; }
+  .screen.active { display:flex; }
+
+  /* ======= LOGIN SCREEN ======= */
+  #loginScreen {
+    background: radial-gradient(ellipse at 50% 0%, rgba(0,212,255,0.08) 0%, transparent 60%),
+                radial-gradient(ellipse at 80% 100%, rgba(255,107,0,0.06) 0%, transparent 50%),
+                var(--bg-primary);
+    justify-content:center; align-items:center;
+  }
+  .login-container { width:100%; max-width:400px; padding:24px; }
+  .login-logo { text-align:center; margin-bottom:40px; }
+  .logo-shield {
+    width:80px; height:80px; margin:0 auto 16px;
+    background:linear-gradient(135deg,rgba(0,212,255,0.15),rgba(0,212,255,0.05));
+    border:2px solid rgba(0,212,255,0.4); border-radius:50%;
+    display:flex; align-items:center; justify-content:center;
+    position:relative;
+    box-shadow:0 0 40px rgba(0,212,255,0.2), inset 0 0 20px rgba(0,212,255,0.05);
+  }
+  .logo-shield i { font-size:36px; color:var(--accent); }
+  .logo-shield::before {
+    content:''; position:absolute; inset:-4px; border-radius:50%;
+    border:1px solid rgba(0,212,255,0.15); animation:rotateBorder 8s linear infinite;
+    border-top-color:var(--accent); border-right-color:transparent; border-bottom-color:transparent; border-left-color:transparent;
+  }
+  @keyframes rotateBorder { to { transform:rotate(360deg); } }
+  .login-title { font-family:'Rajdhani',sans-serif; font-size:28px; font-weight:700; letter-spacing:4px; color:var(--accent); text-transform:uppercase; }
+  .login-sub { font-size:11px; color:var(--text-muted); letter-spacing:3px; text-transform:uppercase; margin-top:4px; }
+
+  .login-card {
+    background:var(--bg-glass); backdrop-filter:blur(20px);
+    border:1px solid var(--border); border-radius:16px; padding:28px;
+    box-shadow:var(--shadow-glow);
+  }
+  .auth-tabs { display:flex; gap:8px; margin-bottom:24px; }
+  .auth-tab {
+    flex:1; padding:10px; border-radius:8px; border:1px solid var(--border);
+    background:transparent; color:var(--text-muted); font-family:'Exo 2',sans-serif;
+    font-size:12px; font-weight:600; cursor:pointer; transition:all .3s; text-transform:uppercase; letter-spacing:1px;
+  }
+  .auth-tab.active { background:rgba(0,212,255,0.1); border-color:var(--accent); color:var(--accent); }
+
+  .auth-section { display:none; }
+  .auth-section.active { display:block; }
+
+  .biometric-pad {
+    display:flex; flex-direction:column; align-items:center; gap:20px; padding:16px 0;
+  }
+  .biometric-btn {
+    width:100px; height:100px; border-radius:50%; border:2px solid var(--border);
+    background:rgba(0,212,255,0.05); cursor:pointer; transition:all .3s;
+    display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6px;
+    position:relative; overflow:hidden;
+  }
+  .biometric-btn i { font-size:36px; color:var(--accent); }
+  .biometric-btn span { font-size:9px; color:var(--text-muted); letter-spacing:1px; font-family:'Share Tech Mono',monospace; }
+  .biometric-btn:active { transform:scale(.95); border-color:var(--accent); box-shadow:0 0 30px rgba(0,212,255,0.3); }
+  .biometric-btn.scanning { border-color:var(--accent); animation:scanPulse 1.5s infinite; }
+  @keyframes scanPulse {
+    0%{box-shadow:0 0 0 0 rgba(0,212,255,.4)}
+    70%{box-shadow:0 0 0 20px rgba(0,212,255,0)}
+    100%{box-shadow:0 0 0 0 rgba(0,212,255,0)}
+  }
+  .scan-line {
+    position:absolute; left:0; right:0; height:2px;
+    background:linear-gradient(90deg,transparent,var(--accent),transparent);
+    top:-2px; animation:scanMove 1.5s linear infinite;
+    display:none;
+  }
+  .biometric-btn.scanning .scan-line { display:block; }
+  @keyframes scanMove { 0%{top:-2px} 100%{top:102px} }
+
+  .biometric-divider { display:flex; align-items:center; gap:12px; width:100%; }
+  .biometric-divider::before, .biometric-divider::after { content:''; flex:1; height:1px; background:var(--border); }
+  .biometric-divider span { font-size:10px; color:var(--text-muted); letter-spacing:2px; }
+
+  .input-group { margin-bottom:16px; position:relative; }
+  .input-group label { display:block; font-size:10px; color:var(--text-muted); letter-spacing:2px; text-transform:uppercase; margin-bottom:6px; font-family:'Share Tech Mono',monospace; }
+  .input-group input {
+    width:100%; padding:12px 16px 12px 42px; background:rgba(0,0,0,0.3);
+    border:1px solid var(--border); border-radius:8px; color:var(--text-primary);
+    font-family:'Exo 2',sans-serif; font-size:14px; outline:none; transition:all .3s;
+  }
+  .input-group input:focus { border-color:var(--accent); box-shadow:0 0 0 3px rgba(0,212,255,0.1); }
+  .input-group .input-icon { position:absolute; left:14px; bottom:13px; color:var(--text-muted); font-size:14px; }
+
+  .btn-primary {
+    width:100%; padding:14px; background:linear-gradient(135deg,var(--accent),#0099bb);
+    border:none; border-radius:10px; color:#000; font-family:'Rajdhani',sans-serif;
+    font-size:16px; font-weight:700; cursor:pointer; letter-spacing:2px; text-transform:uppercase;
+    transition:all .3s; position:relative; overflow:hidden;
+  }
+  .btn-primary::before {
+    content:''; position:absolute; inset:0;
+    background:linear-gradient(135deg,transparent 0%,rgba(255,255,255,0.15) 50%,transparent 100%);
+    transform:translateX(-100%); transition:transform .6s;
+  }
+  .btn-primary:hover::before { transform:translateX(100%); }
+  .btn-primary:active { transform:scale(.98); }
+
+  .face-scan-container { position:relative; width:180px; height:180px; margin:0 auto; cursor:pointer; }
+  .face-scan-container video,
+  .face-scan-container canvas { position:absolute; inset:0; width:100%; height:100%; border-radius:50%; object-fit:cover; }
+  .face-scan-overlay {
+    position:absolute; inset:0; border-radius:50%;
+    border:2px solid rgba(0,212,255,0.3);
+    display:flex; align-items:center; justify-content:center;
+  }
+  .face-scan-overlay i { font-size:48px; color:rgba(0,212,255,0.4); }
+  .face-corner {
+    position:absolute; width:20px; height:20px;
+    border-color:var(--accent); border-style:solid;
+  }
+  .face-corner.tl { top:5px; left:5px; border-width:2px 0 0 2px; }
+  .face-corner.tr { top:5px; right:5px; border-width:2px 2px 0 0; }
+  .face-corner.bl { bottom:5px; left:5px; border-width:0 0 2px 2px; }
+  .face-corner.br { bottom:5px; right:5px; border-width:0 2px 2px 0; }
+  .face-scan-line {
+    position:absolute; left:5%; right:5%; height:2px;
+    background:linear-gradient(90deg,transparent,var(--accent),transparent);
+    top:0; display:none;
+    animation:faceScan 2s linear infinite;
+  }
+  .face-scan-container.scanning .face-scan-line { display:block; }
+  @keyframes faceScan { 0%{top:5%} 50%{top:95%} 100%{top:5%} }
+
+  /* STATUS MESSAGES */
+  .status-msg {
+    padding:10px 16px; border-radius:8px; text-align:center;
+    font-size:12px; font-family:'Share Tech Mono',monospace; margin-top:12px;
+    display:none;
+  }
+  .status-msg.show { display:block; }
+  .status-msg.success { background:rgba(0,255,136,0.1); border:1px solid rgba(0,255,136,0.3); color:var(--accent3); }
+  .status-msg.error { background:rgba(255,45,85,0.1); border:1px solid rgba(255,45,85,0.3); color:var(--danger); }
+  .status-msg.info { background:rgba(0,212,255,0.1); border:1px solid rgba(0,212,255,0.3); color:var(--accent); }
+
+  /* ======= MAIN APP LAYOUT ======= */
+  #mainScreen { background:var(--bg-primary); }
+  .app-header {
+    height:56px; background:var(--bg-glass); backdrop-filter:blur(20px);
+    border-bottom:1px solid var(--border); display:flex; align-items:center;
+    padding:0 16px; gap:12px; flex-shrink:0; z-index:100;
+  }
+  .header-logo { font-family:'Rajdhani',sans-serif; font-size:18px; font-weight:700; color:var(--accent); letter-spacing:2px; }
+  .header-company { font-size:11px; color:var(--text-muted); flex:1; }
+  .header-actions { display:flex; gap:10px; align-items:center; }
+  .header-btn { width:36px; height:36px; border-radius:50%; border:1px solid var(--border); background:transparent; color:var(--text-muted); cursor:pointer; display:flex; align-items:center; justify-content:center; font-size:14px; transition:all .3s; position:relative; }
+  .header-btn:hover, .header-btn.active { border-color:var(--accent); color:var(--accent); }
+  .badge { position:absolute; top:-2px; right:-2px; width:16px; height:16px; border-radius:50%; background:var(--danger); color:white; font-size:9px; display:flex; align-items:center; justify-content:center; font-weight:700; }
+  .user-avatar-sm { width:36px; height:36px; border-radius:50%; border:2px solid var(--accent); object-fit:cover; cursor:pointer; }
+
+  /* BOTTOM NAV */
+  .bottom-nav {
+    height:64px; background:var(--bg-glass); backdrop-filter:blur(20px);
+    border-top:1px solid var(--border); display:flex; align-items:center;
+    flex-shrink:0; padding-bottom:env(safe-area-inset-bottom,0);
+  }
+  .nav-item { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; cursor:pointer; padding:8px 4px; transition:all .3s; position:relative; }
+  .nav-item i { font-size:18px; color:var(--text-muted); transition:all .3s; }
+  .nav-item span { font-size:9px; color:var(--text-muted); letter-spacing:1px; text-transform:uppercase; transition:all .3s; font-family:'Share Tech Mono',monospace; }
+  .nav-item.active i, .nav-item.active span { color:var(--accent); }
+  .nav-item.active::before { content:''; position:absolute; top:0; left:25%; right:25%; height:2px; background:var(--accent); border-radius:0 0 4px 4px; box-shadow:0 2px 8px var(--accent); }
+  .nav-item .nav-badge { position:absolute; top:4px; right:calc(50% - 18px); width:14px; height:14px; border-radius:50%; background:var(--danger); color:white; font-size:8px; display:none; align-items:center; justify-content:center; font-weight:700; }
+  .nav-item .nav-badge.show { display:flex; }
+
+  /* CONTENT AREA */
+  .content-area { flex:1; overflow:hidden; position:relative; }
+  .content-page { position:absolute; inset:0; overflow-y:auto; overflow-x:hidden; display:none; padding-bottom:16px; }
+  .content-page.active { display:block; }
+  .page-header { padding:20px 16px 12px; }
+  .page-title { font-family:'Rajdhani',sans-serif; font-size:22px; font-weight:700; letter-spacing:2px; text-transform:uppercase; }
+  .page-subtitle { font-size:11px; color:var(--text-muted); margin-top:2px; font-family:'Share Tech Mono',monospace; }
+
+  /* CARDS */
+  .card {
+    background:var(--bg-card); border:1px solid var(--border); border-radius:12px;
+    padding:16px; margin:0 16px 12px;
+    transition:all .3s;
+  }
+  .card:hover { border-color:var(--border-glow); box-shadow:var(--shadow-glow); }
+  .card-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; }
+  .card-title { font-family:'Rajdhani',sans-serif; font-size:14px; font-weight:600; letter-spacing:1px; text-transform:uppercase; color:var(--accent); }
+  .card-icon { width:32px; height:32px; border-radius:8px; background:rgba(0,212,255,0.1); display:flex; align-items:center; justify-content:center; }
+  .card-icon i { font-size:14px; color:var(--accent); }
+
+  /* DASHBOARD STATS */
+  .stats-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; padding:0 16px 12px; }
+  .stat-card {
+    background:var(--bg-card); border:1px solid var(--border); border-radius:12px;
+    padding:14px; position:relative; overflow:hidden;
+  }
+  .stat-card::before { content:''; position:absolute; top:0; left:0; right:0; height:2px; }
+  .stat-card.blue::before { background:linear-gradient(90deg,var(--accent),transparent); }
+  .stat-card.orange::before { background:linear-gradient(90deg,var(--accent2),transparent); }
+  .stat-card.green::before { background:linear-gradient(90deg,var(--accent3),transparent); }
+  .stat-card.red::before { background:linear-gradient(90deg,var(--danger),transparent); }
+  .stat-number { font-family:'Rajdhani',sans-serif; font-size:32px; font-weight:700; line-height:1; }
+  .stat-card.blue .stat-number { color:var(--accent); }
+  .stat-card.orange .stat-number { color:var(--accent2); }
+  .stat-card.green .stat-number { color:var(--accent3); }
+  .stat-card.red .stat-number { color:var(--danger); }
+  .stat-label { font-size:10px; color:var(--text-muted); letter-spacing:1px; text-transform:uppercase; margin-top:4px; font-family:'Share Tech Mono',monospace; }
+  .stat-icon { position:absolute; right:12px; top:50%; transform:translateY(-50%); font-size:32px; opacity:0.08; }
+
+  /* AGENTS LIST */
+  .agent-item {
+    display:flex; align-items:center; gap:12px; padding:12px 16px;
+    border-bottom:1px solid rgba(255,255,255,0.04); cursor:pointer;
+    transition:all .3s;
+  }
+  .agent-item:active { background:rgba(0,212,255,0.05); }
+  .agent-avatar { position:relative; flex-shrink:0; }
+  .agent-avatar img { width:48px; height:48px; border-radius:50%; object-fit:cover; border:2px solid var(--border); }
+  .agent-avatar .status-dot { position:absolute; bottom:1px; right:1px; width:12px; height:12px; border-radius:50%; border:2px solid var(--bg-card); }
+  .status-dot.online { background:var(--online); box-shadow:0 0 8px var(--online); }
+  .status-dot.offline { background:var(--offline); }
+  .agent-info { flex:1; min-width:0; }
+  .agent-name { font-weight:600; font-size:14px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .agent-role { font-size:11px; color:var(--text-muted); margin-top:1px; font-family:'Share Tech Mono',monospace; }
+  .agent-meta { display:flex; gap:6px; flex-wrap:wrap; margin-top:4px; }
+  .agent-badge { padding:2px 8px; border-radius:4px; font-size:9px; font-weight:600; letter-spacing:1px; text-transform:uppercase; }
+  .badge-shift { background:rgba(0,212,255,0.1); color:var(--accent); border:1px solid rgba(0,212,255,0.2); }
+  .badge-day { background:rgba(255,214,10,0.1); color:var(--warning); border:1px solid rgba(255,214,10,0.2); }
+  .badge-night { background:rgba(107,122,153,0.2); color:#a0aec0; border:1px solid rgba(107,122,153,0.3); }
+  .badge-off { background:rgba(255,45,85,0.1); color:var(--danger); border:1px solid rgba(255,45,85,0.2); }
+  .agent-time { font-family:'Share Tech Mono',monospace; font-size:10px; color:var(--text-muted); text-align:right; }
+
+  /* MAP */
+  #mapContainer { position:absolute; inset:0; }
+  #map { width:100%; height:100%; }
+  .map-controls {
+    position:absolute; top:16px; right:16px; z-index:1000;
+    display:flex; flex-direction:column; gap:8px;
+  }
+  .map-btn {
+    width:40px; height:40px; border-radius:10px; border:1px solid var(--border);
+    background:var(--bg-glass); backdrop-filter:blur(10px);
+    color:var(--text-primary); cursor:pointer; display:flex; align-items:center;
+    justify-content:center; font-size:16px; transition:all .3s;
+  }
+  .map-btn:active { border-color:var(--accent); color:var(--accent); }
+  .agent-marker { background:none; border:none; }
+  .marker-inner {
+    width:36px; height:36px; border-radius:50%;
+    border:2px solid var(--accent); overflow:hidden;
+    box-shadow:0 0 15px rgba(0,212,255,0.5);
+  }
+  .marker-inner img { width:100%; height:100%; object-fit:cover; }
+  .marker-offline .marker-inner { border-color:var(--danger); box-shadow:0 0 10px rgba(255,45,85,0.4); }
+
+  /* REPORTS */
+  .report-form { padding:0 16px; }
+  .form-group { margin-bottom:14px; }
+  .form-label { display:block; font-size:10px; color:var(--text-muted); letter-spacing:2px; text-transform:uppercase; margin-bottom:6px; font-family:'Share Tech Mono',monospace; }
+  .form-input {
+    width:100%; padding:11px 14px; background:rgba(0,0,0,0.3);
+    border:1px solid var(--border); border-radius:8px; color:var(--text-primary);
+    font-family:'Exo 2',sans-serif; font-size:13px; outline:none; transition:all .3s;
+  }
+  .form-input:focus { border-color:var(--accent); box-shadow:0 0 0 3px rgba(0,212,255,0.08); }
+  .form-input select, select.form-input { appearance:none; }
+  .form-row { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .form-textarea { min-height:80px; resize:vertical; }
+
+  .priority-selector { display:flex; gap:8px; }
+  .priority-btn { flex:1; padding:8px; border-radius:8px; border:1px solid var(--border); background:transparent; color:var(--text-muted); font-size:11px; cursor:pointer; transition:all .3s; text-align:center; font-family:'Exo 2',sans-serif; font-weight:600; }
+  .priority-btn.low.active { border-color:var(--accent3); color:var(--accent3); background:rgba(0,255,136,0.08); }
+  .priority-btn.medium.active { border-color:var(--warning); color:var(--warning); background:rgba(255,214,10,0.08); }
+  .priority-btn.high.active { border-color:var(--danger); color:var(--danger); background:rgba(255,45,85,0.08); }
+
+  .photo-upload {
+    width:100%; height:80px; border:2px dashed var(--border); border-radius:10px;
+    display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6px;
+    cursor:pointer; transition:all .3s;
+  }
+  .photo-upload:hover { border-color:var(--accent); }
+  .photo-upload i { font-size:22px; color:var(--text-muted); }
+  .photo-upload span { font-size:11px; color:var(--text-muted); }
+
+  /* CHAT */
+  .chat-container { display:flex; flex-direction:column; height:100%; }
+  .chat-list { flex:1; overflow-y:auto; }
+  .chat-list-item { display:flex; align-items:center; gap:12px; padding:14px 16px; border-bottom:1px solid rgba(255,255,255,0.04); cursor:pointer; transition:all .3s; }
+  .chat-list-item:active { background:rgba(0,212,255,0.05); }
+  .chat-avatar { width:48px; height:48px; border-radius:50%; object-fit:cover; border:2px solid var(--border); flex-shrink:0; position:relative; }
+  .chat-info { flex:1; min-width:0; }
+  .chat-name { font-weight:600; font-size:14px; }
+  .chat-preview { font-size:12px; color:var(--text-muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-top:2px; }
+  .chat-time { font-size:10px; color:var(--text-muted); font-family:'Share Tech Mono',monospace; }
+  .chat-unread { width:18px; height:18px; border-radius:50%; background:var(--accent); color:#000; font-size:10px; font-weight:700; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+
+  .chat-window { display:none; position:absolute; inset:0; flex-direction:column; background:var(--bg-primary); z-index:50; }
+  .chat-window.active { display:flex; }
+  .chat-header { padding:12px 16px; background:var(--bg-glass); backdrop-filter:blur(20px); border-bottom:1px solid var(--border); display:flex; align-items:center; gap:12px; flex-shrink:0; }
+  .back-btn { color:var(--accent); font-size:18px; cursor:pointer; padding:4px; }
+  .chat-header-name { font-weight:700; font-size:15px; }
+  .chat-header-status { font-size:11px; color:var(--text-muted); font-family:'Share Tech Mono',monospace; }
+  .chat-messages { flex:1; overflow-y:auto; padding:16px; display:flex; flex-direction:column; gap:12px; }
+  .msg { max-width:75%; display:flex; flex-direction:column; gap:4px; }
+  .msg.sent { align-self:flex-end; align-items:flex-end; }
+  .msg.recv { align-self:flex-start; }
+  .msg-bubble {
+    padding:10px 14px; border-radius:16px; font-size:13px; line-height:1.5;
+    position:relative;
+  }
+  .msg.sent .msg-bubble { background:linear-gradient(135deg,var(--accent),#0099bb); color:#000; border-bottom-right-radius:4px; }
+  .msg.recv .msg-bubble { background:var(--bg-card); border:1px solid var(--border); border-bottom-left-radius:4px; }
+  .msg-time { font-size:10px; color:var(--text-muted); font-family:'Share Tech Mono',monospace; }
+  .msg-file { display:flex; align-items:center; gap:10px; padding:10px 14px; border-radius:12px; background:rgba(0,212,255,0.08); border:1px solid rgba(0,212,255,0.15); cursor:pointer; }
+  .msg-file i { font-size:20px; color:var(--accent); }
+  .msg-file-info { flex:1; }
+  .msg-file-name { font-size:12px; font-weight:600; }
+  .msg-file-size { font-size:10px; color:var(--text-muted); }
+  .chat-input-area { padding:12px 16px; padding-bottom:max(12px,env(safe-area-inset-bottom)); background:var(--bg-glass); backdrop-filter:blur(20px); border-top:1px solid var(--border); display:flex; gap:10px; align-items:flex-end; flex-shrink:0; }
+  .chat-input { flex:1; padding:10px 14px; background:rgba(0,0,0,0.3); border:1px solid var(--border); border-radius:20px; color:var(--text-primary); font-family:'Exo 2',sans-serif; font-size:13px; outline:none; resize:none; max-height:100px; transition:border-color .3s; }
+  .chat-input:focus { border-color:var(--accent); }
+  .chat-send-btn { width:40px; height:40px; border-radius:50%; background:var(--accent); border:none; color:#000; font-size:16px; cursor:pointer; display:flex; align-items:center; justify-content:center; flex-shrink:0; transition:all .3s; }
+  .chat-send-btn:active { transform:scale(.9); }
+  .chat-attach-btn { width:36px; height:36px; border-radius:50%; background:transparent; border:1px solid var(--border); color:var(--text-muted); font-size:14px; cursor:pointer; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+
+  /* INVENTORY */
+  .inventory-item { display:flex; align-items:center; gap:14px; padding:12px 16px; border-bottom:1px solid rgba(255,255,255,0.04); }
+  .inv-icon { width:40px; height:40px; border-radius:10px; background:rgba(0,212,255,0.08); border:1px solid rgba(0,212,255,0.15); display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+  .inv-icon i { font-size:18px; color:var(--accent); }
+  .inv-info { flex:1; }
+  .inv-name { font-weight:600; font-size:14px; }
+  .inv-detail { font-size:11px; color:var(--text-muted); margin-top:2px; }
+  .inv-count { font-family:'Rajdhani',sans-serif; font-size:22px; font-weight:700; color:var(--accent); }
+
+  /* PROFILE */
+  .profile-hero {
+    padding:24px 16px; background:linear-gradient(135deg,rgba(0,212,255,0.08),rgba(255,107,0,0.04));
+    border-bottom:1px solid var(--border); display:flex; align-items:center; gap:16px;
+  }
+  .profile-avatar-container { position:relative; }
+  .profile-avatar { width:80px; height:80px; border-radius:50%; object-fit:cover; border:3px solid var(--accent); }
+  .profile-edit-avatar { position:absolute; bottom:0; right:0; width:24px; height:24px; border-radius:50%; background:var(--accent); border:2px solid var(--bg-primary); display:flex; align-items:center; justify-content:center; cursor:pointer; }
+  .profile-edit-avatar i { font-size:10px; color:#000; }
+  .profile-name { font-family:'Rajdhani',sans-serif; font-size:20px; font-weight:700; }
+  .profile-id { font-family:'Share Tech Mono',monospace; font-size:11px; color:var(--accent); margin-top:2px; }
+  .profile-role { font-size:12px; color:var(--text-muted); margin-top:4px; }
+
+  .section-header { padding:16px 16px 8px; display:flex; align-items:center; gap:8px; }
+  .section-label { font-family:'Rajdhani',sans-serif; font-size:13px; font-weight:600; letter-spacing:2px; text-transform:uppercase; color:var(--text-muted); }
+  .info-row { display:flex; justify-content:space-between; align-items:center; padding:12px 16px; border-bottom:1px solid rgba(255,255,255,0.04); }
+  .info-key { font-size:11px; color:var(--text-muted); font-family:'Share Tech Mono',monospace; }
+  .info-val { font-size:13px; font-weight:500; text-align:right; }
+
+  /* FAB */
+  .fab {
+    position:fixed; bottom:calc(64px + 16px); right:16px; width:52px; height:52px;
+    border-radius:50%; background:var(--accent); border:none; color:#000;
+    font-size:22px; cursor:pointer; box-shadow:0 4px 20px rgba(0,212,255,0.4);
+    display:flex; align-items:center; justify-content:center; z-index:200;
+    transition:all .3s;
+  }
+  .fab:active { transform:scale(.92); }
+
+  /* MODALS */
+  .modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.8); backdrop-filter:blur(8px); z-index:500; display:none; align-items:flex-end; justify-content:center; }
+  .modal-overlay.show { display:flex; }
+  .modal-sheet { background:var(--bg-secondary); border-radius:20px 20px 0 0; border:1px solid var(--border); border-bottom:none; width:100%; max-height:90vh; overflow-y:auto; padding-bottom:max(24px,env(safe-area-inset-bottom)); animation:slideUp .3s ease; }
+  @keyframes slideUp { from{transform:translateY(100%)} to{transform:translateY(0)} }
+  .modal-handle { width:36px; height:4px; border-radius:2px; background:rgba(255,255,255,0.2); margin:12px auto 0; }
+  .modal-title { font-family:'Rajdhani',sans-serif; font-size:18px; font-weight:700; letter-spacing:1px; padding:16px 20px 8px; }
+  .modal-close { position:absolute; right:16px; top:16px; width:32px; height:32px; border-radius:50%; background:rgba(255,255,255,0.1); border:none; color:var(--text-primary); cursor:pointer; display:flex; align-items:center; justify-content:center; }
+
+  /* TOAST */
+  #toast { position:fixed; bottom:calc(64px + 24px); left:50%; transform:translateX(-50%) translateY(100px); z-index:9000; background:var(--bg-glass); backdrop-filter:blur(20px); border:1px solid var(--border); border-radius:12px; padding:12px 20px; font-size:13px; color:var(--text-primary); transition:transform .3s; white-space:nowrap; font-family:'Share Tech Mono',monospace; }
+  #toast.show { transform:translateX(-50%) translateY(0); }
+  #toast.success { border-color:rgba(0,255,136,.4); color:var(--accent3); }
+  #toast.error { border-color:rgba(255,45,85,.4); color:var(--danger); }
+
+  /* SHIFT BADGE LARGE */
+  .shift-indicator { display:flex; gap:8px; flex-wrap:wrap; padding:0 16px 12px; }
+  .shift-badge { display:flex; align-items:center; gap:6px; padding:8px 14px; border-radius:10px; border:1px solid; font-size:12px; font-weight:600; }
+  .shift-badge.mañana { border-color:rgba(255,214,10,0.3); background:rgba(255,214,10,0.08); color:var(--warning); }
+  .shift-badge.tarde { border-color:rgba(255,107,0,0.3); background:rgba(255,107,0,0.08); color:var(--accent2); }
+  .shift-badge.noche { border-color:rgba(107,122,153,0.3); background:rgba(107,122,153,0.1); color:#8899bb; }
+  .shift-badge.libre { border-color:rgba(255,45,85,0.3); background:rgba(255,45,85,0.08); color:var(--danger); }
+
+  /* SCROLLBAR */
+  ::-webkit-scrollbar { width:3px; height:3px; }
+  ::-webkit-scrollbar-track { background:transparent; }
+  ::-webkit-scrollbar-thumb { background:rgba(0,212,255,0.2); border-radius:2px; }
+
+  /* LOADING */
+  .loading-screen { position:fixed; inset:0; background:var(--bg-primary); z-index:50000; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:20px; }
+  .loading-logo { font-family:'Rajdhani',sans-serif; font-size:36px; font-weight:700; color:var(--accent); letter-spacing:6px; }
+  .loading-bar-outer { width:200px; height:3px; background:rgba(0,212,255,0.1); border-radius:2px; overflow:hidden; }
+  .loading-bar-inner { height:100%; background:var(--accent); border-radius:2px; animation:loading 2s ease forwards; }
+  @keyframes loading { from{width:0} to{width:100%} }
+  .loading-text { font-family:'Share Tech Mono',monospace; font-size:11px; color:var(--text-muted); letter-spacing:3px; animation:blink 1s infinite; }
+  @keyframes blink { 50%{opacity:0} }
+
+  /* REPORT HISTORY */
+  .report-item { padding:14px 16px; border-bottom:1px solid rgba(255,255,255,0.04); cursor:pointer; transition:all .3s; }
+  .report-item:active { background:rgba(0,212,255,0.05); }
+  .report-header-row { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:6px; }
+  .report-type { font-weight:700; font-size:14px; }
+  .report-priority { padding:2px 10px; border-radius:20px; font-size:10px; font-weight:600; letter-spacing:1px; }
+  .priority-low { background:rgba(0,255,136,0.1); color:var(--accent3); }
+  .priority-medium { background:rgba(255,214,10,0.1); color:var(--warning); }
+  .priority-high { background:rgba(255,45,85,0.1); color:var(--danger); }
+  .report-detail { font-size:12px; color:var(--text-muted); line-height:1.5; }
+  .report-meta-row { display:flex; gap:16px; margin-top:6px; }
+  .report-meta-item { display:flex; align-items:center; gap:4px; font-size:10px; color:var(--text-muted); font-family:'Share Tech Mono',monospace; }
+
+  .tab-bar { display:flex; padding:0 16px 12px; gap:8px; overflow-x:auto; }
+  .tab-btn { padding:7px 16px; border-radius:20px; border:1px solid var(--border); background:transparent; color:var(--text-muted); font-size:11px; cursor:pointer; white-space:nowrap; transition:all .3s; font-family:'Exo 2',sans-serif; font-weight:600; letter-spacing:1px; text-transform:uppercase; }
+  .tab-btn.active { background:rgba(0,212,255,0.1); border-color:var(--accent); color:var(--accent); }
+
+  /* SCHEDULE GRID */
+  .schedule-grid { padding:0 16px; overflow-x:auto; }
+  .sched-table { width:100%; border-collapse:collapse; min-width:500px; }
+  .sched-table th { padding:8px 10px; font-size:10px; font-family:'Share Tech Mono',monospace; color:var(--text-muted); text-align:center; letter-spacing:1px; border-bottom:1px solid var(--border); }
+  .sched-table td { padding:10px; text-align:center; border-bottom:1px solid rgba(255,255,255,0.03); }
+  .sched-table tr:hover td { background:rgba(0,212,255,0.03); }
+  .sched-name { text-align:left !important; font-size:13px; font-weight:500; }
+  .sched-cell { padding:4px 8px; border-radius:6px; font-size:10px; font-weight:600; display:inline-block; }
+
+  /* QUICK ACTIONS */
+  .quick-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; padding:0 16px 12px; }
+  .quick-item { display:flex; flex-direction:column; align-items:center; gap:6px; padding:14px 8px; background:var(--bg-card); border:1px solid var(--border); border-radius:12px; cursor:pointer; transition:all .3s; }
+  .quick-item:active { transform:scale(.95); border-color:var(--accent); }
+  .quick-item i { font-size:22px; }
+  .quick-item span { font-size:9px; text-align:center; color:var(--text-muted); font-family:'Share Tech Mono',monospace; letter-spacing:.5px; }
+
+  select.form-input option { background:var(--bg-secondary); color:var(--text-primary); }
+
+  /* OFFLINE BANNER */
+  #offlineBanner { display:none; background:rgba(255,45,85,0.15); border-bottom:1px solid var(--danger); padding:8px 16px; text-align:center; font-size:11px; color:var(--danger); font-family:'Share Tech Mono',monospace; letter-spacing:2px; }
+  #offlineBanner.show { display:block; }
+</style>
+</head>
+<body>
+
+<!-- LOADING -->
+<div class="loading-screen" id="loadingScreen">
+  <div style="font-size:60px;color:var(--accent);opacity:.2;position:absolute;top:20%;left:50%;transform:translateX(-50%)">
+    <i class="fas fa-shield-alt"></i>
+  </div>
+  <div class="loading-logo">SECURITAS<span style="color:var(--accent2)">PRO</span></div>
+  <div class="loading-bar-outer"><div class="loading-bar-inner"></div></div>
+  <div class="loading-text">INICIALIZANDO SISTEMA...</div>
+</div>
+
+<!-- NETWORK STATUS BAR -->
+<div id="networkBar">
+  <div class="net-indicator">
+    <div class="net-dot online" id="netDot"></div>
+    <span id="netLabel" style="font-size:10px">ONLINE</span>
+  </div>
+  <div style="font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--text-muted)" id="clockTop">00:00:00</div>
+  <div class="net-signal" id="signalBars">
+    <div class="sig-bar active"></div>
+    <div class="sig-bar active"></div>
+    <div class="sig-bar active"></div>
+    <div class="sig-bar active"></div>
+  </div>
+</div>
+
+<!-- APP -->
+<div id="app">
+
+  <!-- OFFLINE BANNER -->
+  <div id="offlineBanner"><i class="fas fa-wifi-slash"></i> &nbsp;SIN CONEXIÓN — MODO OFFLINE ACTIVO</div>
+
+  <!-- ========== LOGIN SCREEN ========== -->
+  <div class="screen active" id="loginScreen">
+    <div class="login-container">
+      <div class="login-logo">
+        <div class="logo-shield"><i class="fas fa-shield-alt"></i></div>
+        <div class="login-title">SecuritasPRO</div>
+        <div class="login-sub">Sistema de Gestión de Seguridad</div>
+      </div>
+      <div class="login-card">
+        <div class="auth-tabs">
+          <button class="auth-tab active" onclick="switchAuth('biometric')"><i class="fas fa-fingerprint"></i> Biométrico</button>
+          <button class="auth-tab" onclick="switchAuth('face')"><i class="fas fa-face-viewfinder"></i> Facial</button>
+          <button class="auth-tab" onclick="switchAuth('password')"><i class="fas fa-lock"></i> Clave</button>
+        </div>
+
+        <!-- BIOMETRIC -->
+        <div class="auth-section active" id="authBiometric">
+          <div class="biometric-pad">
+            <div style="font-size:11px;color:var(--text-muted);text-align:center;letter-spacing:2px;font-family:'Share Tech Mono',monospace">AUTENTICACIÓN BIOMÉTRICA</div>
+            <button class="biometric-btn" id="fingerprintBtn" onclick="startFingerprint()">
+              <div class="scan-line"></div>
+              <i class="fas fa-fingerprint"></i>
+              <span>TOCA AQUÍ</span>
+            </button>
+            <div style="font-size:11px;color:var(--text-muted);text-align:center">Coloca tu dedo en el sensor<br>o en el botón de inicio del dispositivo</div>
+            <div class="status-msg" id="fpStatus"></div>
+          </div>
+          <div class="biometric-divider"><span>O ingresa tu ID</span></div>
+          <div class="input-group" style="margin-top:16px">
+            <label>ID de Agente</label>
+            <i class="fas fa-id-badge input-icon"></i>
+            <input type="text" id="agentIdQuick" placeholder="AG-001" style="text-transform:uppercase">
+          </div>
+          <button class="btn-primary" onclick="quickLogin()">ACCEDER</button>
+        </div>
+
+        <!-- FACE -->
+        <div class="auth-section" id="authFace">
+          <div class="biometric-pad">
+            <div style="font-size:11px;color:var(--text-muted);text-align:center;letter-spacing:2px;font-family:'Share Tech Mono',monospace">RECONOCIMIENTO FACIAL</div>
+            <div class="face-scan-container" id="faceScanContainer" onclick="startFaceScan()">
+              <video id="faceVideo" autoplay muted playsinline style="border-radius:50%;"></video>
+              <canvas id="faceCanvas" style="display:none"></canvas>
+              <div class="face-scan-overlay" id="faceScanOverlay">
+                <i class="fas fa-face-viewfinder"></i>
+              </div>
+              <div class="face-scan-line"></div>
+              <div class="face-corner tl"></div>
+              <div class="face-corner tr"></div>
+              <div class="face-corner bl"></div>
+              <div class="face-corner br"></div>
+            </div>
+            <div style="font-size:11px;color:var(--text-muted);text-align:center">Toca para activar la cámara<br>y posiciona tu rostro</div>
+            <div class="status-msg" id="faceStatus"></div>
+          </div>
+        </div>
+
+        <!-- PASSWORD -->
+        <div class="auth-section" id="authPassword">
+          <div class="input-group">
+            <label>Usuario / ID de Agente</label>
+            <i class="fas fa-user input-icon"></i>
+            <input type="text" id="loginUser" placeholder="AG-001 o admin" style="text-transform:uppercase">
+          </div>
+          <div class="input-group">
+            <label>Contraseña</label>
+            <i class="fas fa-lock input-icon"></i>
+            <input type="password" id="loginPass" placeholder="••••••••" onkeydown="if(event.key==='Enter')doLogin()">
+          </div>
+          <div class="status-msg" id="passStatus"></div>
+          <button class="btn-primary" style="margin-top:8px" onclick="doLogin()">INICIAR SESIÓN</button>
+        </div>
+      </div>
+      <div style="text-align:center;margin-top:16px;font-size:10px;color:var(--text-muted);font-family:'Share Tech Mono',monospace">
+        v2.4.1 &nbsp;•&nbsp; SECURITASPRO &nbsp;•&nbsp; <span id="loginNetStatus" style="color:var(--online)">● ONLINE</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== MAIN SCREEN ========== -->
+  <div class="screen" id="mainScreen">
+    <div id="offlineBannerMain" style="display:none;background:rgba(255,45,85,0.15);border-bottom:1px solid var(--danger);padding:6px 16px;text-align:center;font-size:10px;color:var(--danger);font-family:'Share Tech Mono',monospace;letter-spacing:2px;flex-shrink:0"><i class="fas fa-wifi-slash"></i> &nbsp;MODO OFFLINE — DATOS LOCALES</div>
+
+    <!-- HEADER -->
+    <div class="app-header">
+      <i class="fas fa-shield-alt" style="color:var(--accent);font-size:20px"></i>
+      <div>
+        <div class="header-logo">SECURITAS<span style="color:var(--accent2)">PRO</span></div>
+        <div class="header-company" id="companyNameHeader">Empresa de Seguridad</div>
+      </div>
+      <div class="header-actions">
+        <button class="header-btn" onclick="showEmergencyModal()"><i class="fas fa-exclamation-triangle" style="color:var(--danger)"></i></button>
+        <button class="header-btn" onclick="switchPage('chat')"><i class="fas fa-comments"></i><span class="badge" id="chatBadge" style="display:none">3</span></button>
+        <img src="" id="userAvatarHeader" class="user-avatar-sm" onclick="switchPage('profile')" style="background:linear-gradient(135deg,#1a2a3a,#0d1a2a);display:flex;align-items:center;justify-content:center" onerror="this.src='data:image/svg+xml,<svg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 40 40\'><circle cx=\'20\' cy=\'20\' r=\'20\' fill=\'%230d1220\'><\/circle><text x=\'20\' y=\'26\' text-anchor=\'middle\' font-size=\'16\' fill=\'%2300d4ff\' font-family=\'Rajdhani\'>?<\/text><\/svg>'">
+      </div>
+    </div>
+
+    <!-- CONTENT -->
+    <div class="content-area">
+
+      <!-- ===== DASHBOARD ===== -->
+      <div class="content-page active" id="pageDashboard">
+        <div class="page-header">
+          <div class="page-title">Dashboard</div>
+          <div class="page-subtitle" id="dashDate">Viernes, 22 de Mayo 2026 — Punto: Centro Comercial Norte</div>
+        </div>
+
+        <div class="stats-grid">
+          <div class="stat-card blue">
+            <div class="stat-number" id="statOnline">8</div>
+            <div class="stat-label">Guardias Online</div>
+            <i class="fas fa-user-shield stat-icon" style="color:var(--accent)"></i>
+          </div>
+          <div class="stat-card orange">
+            <div class="stat-number" id="statReports">12</div>
+            <div class="stat-label">Reportes Hoy</div>
+            <i class="fas fa-file-alt stat-icon" style="color:var(--accent2)"></i>
+          </div>
+          <div class="stat-card green">
+            <div class="stat-number" id="statActive">3</div>
+            <div class="stat-label">Turnos Activos</div>
+            <i class="fas fa-clock stat-icon" style="color:var(--accent3)"></i>
+          </div>
+          <div class="stat-card red">
+            <div class="stat-number" id="statAlerts">2</div>
+            <div class="stat-label">Alertas</div>
+            <i class="fas fa-bell stat-icon" style="color:var(--danger)"></i>
+          </div>
+        </div>
+
+        <!-- SHIFT BADGES -->
+        <div class="shift-indicator">
+          <div class="shift-badge mañana"><i class="fas fa-sun"></i> Mañana: <b>3</b></div>
+          <div class="shift-badge tarde"><i class="fas fa-cloud-sun"></i> Tarde: <b>3</b></div>
+          <div class="shift-badge noche"><i class="fas fa-moon"></i> Noche: <b>2</b></div>
+          <div class="shift-badge libre"><i class="fas fa-umbrella-beach"></i> Libres: <b>2</b></div>
+        </div>
+
+        <!-- QUICK ACTIONS -->
+        <div class="card-header" style="padding:0 16px 8px"><span class="card-title">Acciones Rápidas</span></div>
+        <div class="quick-grid">
+          <div class="quick-item" onclick="switchPage('reports');openNewReport()">
+            <i class="fas fa-plus-circle" style="color:var(--accent)"></i>
+            <span>Nuevo Reporte</span>
+          </div>
+          <div class="quick-item" onclick="switchPage('map')">
+            <i class="fas fa-map-marked-alt" style="color:var(--accent3)"></i>
+            <span>Ver Mapa</span>
+          </div>
+          <div class="quick-item" onclick="switchPage('agents')">
+            <i class="fas fa-users" style="color:var(--accent2)"></i>
+            <span>Agentes</span>
+          </div>
+          <div class="quick-item" onclick="switchPage('chat')">
+            <i class="fas fa-comments" style="color:var(--warning)"></i>
+            <span>Chat</span>
+          </div>
+          <div class="quick-item" onclick="switchPage('schedule')">
+            <i class="fas fa-calendar-alt" style="color:#a78bfa"></i>
+            <span>Horario</span>
+          </div>
+          <div class="quick-item" onclick="switchPage('inventory')">
+            <i class="fas fa-boxes-stacked" style="color:var(--accent2)"></i>
+            <span>Inventario</span>
+          </div>
+          <div class="quick-item" onclick="registerEntry()">
+            <i class="fas fa-sign-in-alt" style="color:var(--accent3)"></i>
+            <span>Entrada</span>
+          </div>
+          <div class="quick-item" onclick="registerExit()">
+            <i class="fas fa-sign-out-alt" style="color:var(--danger)"></i>
+            <span>Salida</span>
+          </div>
+        </div>
+
+        <!-- RECENT REPORTS -->
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">Últimas Novedades</span>
+            <button style="background:none;border:none;color:var(--accent);font-size:12px;cursor:pointer" onclick="switchPage('reports')">Ver todo →</button>
+          </div>
+          <div id="recentReportsList"></div>
+        </div>
+
+        <!-- SUPERVISOR INFO -->
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">Turno Actual</span>
+            <div class="card-icon"><i class="fas fa-user-tie"></i></div>
+          </div>
+          <div id="currentShiftInfo"></div>
+        </div>
+      </div>
+
+      <!-- ===== AGENTS ===== -->
+      <div class="content-page" id="pageAgents">
+        <div class="page-header">
+          <div class="page-title">Agentes</div>
+          <div class="page-subtitle" id="agentsCount">10 guardias registrados</div>
+        </div>
+        <div style="padding:0 16px 12px">
+          <div class="input-group" style="margin:0">
+            <i class="fas fa-search input-icon" style="bottom:12px"></i>
+            <input type="text" class="form-input" placeholder="Buscar agente..." oninput="filterAgents(this.value)" style="padding-left:42px">
+          </div>
+        </div>
+        <div class="tab-bar">
+          <button class="tab-btn active" onclick="filterAgentsByStatus('all',this)">Todos</button>
+          <button class="tab-btn" onclick="filterAgentsByStatus('online',this)">Online</button>
+          <button class="tab-btn" onclick="filterAgentsByStatus('offline',this)">Offline</button>
+          <button class="tab-btn" onclick="filterAgentsByStatus('mañana',this)">Mañana</button>
+          <button class="tab-btn" onclick="filterAgentsByStatus('tarde',this)">Tarde</button>
+          <button class="tab-btn" onclick="filterAgentsByStatus('noche',this)">Noche</button>
+        </div>
+        <div id="agentsList"></div>
+      </div>
+
+      <!-- ===== MAP ===== -->
+      <div class="content-page" id="pageMap" style="padding:0">
+        <div id="mapContainer">
+          <div id="map"></div>
+          <div class="map-controls">
+            <button class="map-btn" onclick="centerMap()" title="Mi ubicación"><i class="fas fa-crosshairs"></i></button>
+            <button class="map-btn" onclick="toggleMapStyle()" title="Estilo"><i class="fas fa-layer-group"></i></button>
+            <button class="map-btn" onclick="fitAllAgents()" title="Ver todos"><i class="fas fa-expand"></i></button>
+          </div>
+          <!-- MAP LEGEND -->
+          <div style="position:absolute;bottom:16px;left:16px;z-index:1000;background:var(--bg-glass);backdrop-filter:blur(10px);border:1px solid var(--border);border-radius:10px;padding:10px 14px;">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;font-size:11px;font-family:'Share Tech Mono',monospace">
+              <div style="width:10px;height:10px;border-radius:50%;background:var(--online);box-shadow:0 0 8px var(--online)"></div>Online
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;font-size:11px;font-family:'Share Tech Mono',monospace">
+              <div style="width:10px;height:10px;border-radius:50%;background:var(--offline)"></div>Offline
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== REPORTS ===== -->
+      <div class="content-page" id="pageReports">
+        <div class="page-header">
+          <div class="page-title">Reportes</div>
+          <div class="page-subtitle">Novedades y eventos del turno</div>
+        </div>
+        <div class="tab-bar">
+          <button class="tab-btn active" onclick="switchReportTab('history',this)">Historial</button>
+          <button class="tab-btn" onclick="switchReportTab('new',this)">Nuevo</button>
+        </div>
+
+        <!-- HISTORY -->
+        <div id="reportTabHistory">
+          <div id="reportHistoryList"></div>
+        </div>
+
+        <!-- NEW REPORT FORM -->
+        <div id="reportTabNew" style="display:none">
+          <div class="report-form">
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label">Fecha</label>
+                <input type="date" class="form-input" id="repDate">
+              </div>
+              <div class="form-group">
+                <label class="form-label">Hora Reporte</label>
+                <input type="time" class="form-input" id="repTime">
+              </div>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Tipo de Novedad</label>
+              <select class="form-input" id="repType">
+                <option>Novedad Rutinaria</option>
+                <option>Incidente de Seguridad</option>
+                <option>Acceso No Autorizado</option>
+                <option>Emergencia Médica</option>
+                <option>Daño a Propiedad</option>
+                <option>Sospechoso Detectado</option>
+                <option>Alarma Activada</option>
+                <option>Ronda de Inspección</option>
+                <option>Relevo de Turno</option>
+                <option>Otro</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Prioridad</label>
+              <div class="priority-selector">
+                <button class="priority-btn low active" onclick="setPriority('low',this)">🟢 Baja</button>
+                <button class="priority-btn medium" onclick="setPriority('medium',this)">🟡 Media</button>
+                <button class="priority-btn high" onclick="setPriority('high',this)">🔴 Alta</button>
+              </div>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Descripción Detallada</label>
+              <textarea class="form-input form-textarea" id="repDesc" placeholder="Describe la novedad con detalle..."></textarea>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label">Hora Entrada</label>
+                <input type="time" class="form-input" id="repEntrada">
+              </div>
+              <div class="form-group">
+                <label class="form-label">Hora Salida</label>
+                <input type="time" class="form-input" id="repSalida">
+              </div>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Agente Responsable</label>
+              <select class="form-input" id="repAgent"></select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Responsable de Turno / Jefe</label>
+              <select class="form-input" id="repSupervisor"></select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Supervisor de Turno</label>
+              <input type="text" class="form-input" id="repSup" placeholder="Nombre del supervisor">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Puesto de Trabajo / Ubicación</label>
+              <input type="text" class="form-input" id="repUbicacion" placeholder="Ej: Entrada Principal, Parqueadero...">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Nombre de la Empresa</label>
+              <input type="text" class="form-input" id="repEmpresa" placeholder="Empresa cliente">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Adjuntar Foto / Archivo</label>
+              <div class="photo-upload" onclick="document.getElementById('fileInput').click()">
+                <i class="fas fa-camera"></i>
+                <span>Toca para adjuntar</span>
+              </div>
+              <input type="file" id="fileInput" style="display:none" accept="image/*,application/pdf" multiple>
+              <div id="attachedFiles" style="margin-top:8px;font-size:11px;color:var(--accent)"></div>
+            </div>
+            <div class="form-group">
+              <label class="form-label" style="display:flex;align-items:center;gap:8px">
+                <i class="fas fa-map-marker-alt" style="color:var(--accent)"></i> Geolocalización
+              </label>
+              <div id="geoStatus" style="padding:10px 14px;background:rgba(0,212,255,0.05);border:1px solid var(--border);border-radius:8px;font-size:11px;font-family:'Share Tech Mono',monospace;color:var(--text-muted)">
+                Presiona para capturar ubicación
+              </div>
+              <button class="btn-primary" style="margin-top:8px;background:rgba(0,212,255,0.1);color:var(--accent);border:1px solid var(--border)" onclick="captureGeo()">
+                <i class="fas fa-crosshairs"></i> Capturar GPS
+              </button>
+            </div>
+            <button class="btn-primary" onclick="submitReport()" style="margin-top:8px">
+              <i class="fas fa-paper-plane"></i> ENVIAR REPORTE
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== SCHEDULE ===== -->
+      <div class="content-page" id="pageSchedule">
+        <div class="page-header">
+          <div class="page-title">Horarios</div>
+          <div class="page-subtitle">Turnos de la semana</div>
+        </div>
+        <div class="schedule-grid">
+          <table class="sched-table" id="scheduleTable"></table>
+        </div>
+      </div>
+
+      <!-- ===== INVENTORY ===== -->
+      <div class="content-page" id="pageInventory">
+        <div class="page-header">
+          <div class="page-title">Inventario</div>
+          <div class="page-subtitle">Equipos y activos bajo custodia</div>
+        </div>
+        <div id="inventoryList"></div>
+        <button class="fab" onclick="openAddInventoryModal()"><i class="fas fa-plus"></i></button>
+      </div>
+
+      <!-- ===== CHAT ===== -->
+      <div class="content-page" id="pageChat" style="padding:0">
+        <div class="chat-container">
+          <div class="page-header" style="padding:16px">
+            <div class="page-title">Mensajería</div>
+            <div class="page-subtitle">Chat interno del equipo</div>
+          </div>
+          <div class="chat-list" id="chatList"></div>
+          <!-- Chat Window -->
+          <div class="chat-window" id="chatWindow">
+            <div class="chat-header">
+              <i class="fas fa-arrow-left back-btn" onclick="closeChatWindow()"></i>
+              <img id="chatWindowAvatar" style="width:36px;height:36px;border-radius:50%;object-fit:cover;border:2px solid var(--border)" src="">
+              <div style="flex:1">
+                <div class="chat-header-name" id="chatWindowName">Nombre</div>
+                <div class="chat-header-status" id="chatWindowStatus">online</div>
+              </div>
+              <button class="header-btn" onclick="callAgent()"><i class="fas fa-phone" style="color:var(--accent3)"></i></button>
+            </div>
+            <div class="chat-messages" id="chatMessages"></div>
+            <div class="chat-input-area">
+              <button class="chat-attach-btn" onclick="attachFile()"><i class="fas fa-paperclip"></i></button>
+              <textarea class="chat-input" id="chatInputBox" placeholder="Escribe un mensaje..." rows="1" onkeydown="handleChatKey(event)"></textarea>
+              <button class="chat-send-btn" onclick="sendMessage()"><i class="fas fa-paper-plane"></i></button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== PROFILE ===== -->
+      <div class="content-page" id="pageProfile">
+        <div class="profile-hero">
+          <div class="profile-avatar-container">
+            <img id="profileAvatar" class="profile-avatar" src="" onerror="this.src='data:image/svg+xml,<svg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 80 80\'><rect width=\'80\' height=\'80\' rx=\'40\' fill=\'%230d1220\'\/><text x=\'40\' y=\'52\' text-anchor=\'middle\' font-size=\'32\' fill=\'%2300d4ff\' font-family=\'Rajdhani\'>AG<\/text><\/svg>'">
+            <div class="profile-edit-avatar" onclick="editProfilePhoto()"><i class="fas fa-camera"></i></div>
+          </div>
+          <div>
+            <div class="profile-name" id="profileName">Cargando...</div>
+            <div class="profile-id" id="profileId">AG-000</div>
+            <div class="profile-role" id="profileRole">Guardia de Seguridad</div>
+            <div style="display:flex;gap:8px;margin-top:8px">
+              <span id="profileOnlineStatus" class="agent-badge badge-shift" style="font-size:9px;padding:3px 8px">● ONLINE</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="section-header"><span class="section-label">Información Personal</span></div>
+        <div id="profileInfoRows"></div>
+
+        <div class="section-header" style="margin-top:8px"><span class="section-label">Información Laboral</span></div>
+        <div id="profileWorkRows"></div>
+
+        <div style="padding:16px;display:flex;flex-direction:column;gap:10px">
+          <button class="btn-primary" style="background:rgba(255,45,85,0.1);color:var(--danger);border:1px solid rgba(255,45,85,0.3)" onclick="doLogout()">
+            <i class="fas fa-sign-out-alt"></i> CERRAR SESIÓN
+          </button>
+        </div>
+      </div>
+
+    </div><!-- /content-area -->
+
+    <!-- BOTTOM NAV -->
+    <div class="bottom-nav">
+      <div class="nav-item active" onclick="switchPage('dashboard')" id="nav-dashboard">
+        <i class="fas fa-home"></i><span>Inicio</span>
+      </div>
+      <div class="nav-item" onclick="switchPage('agents')" id="nav-agents">
+        <i class="fas fa-users"></i><span>Agentes</span>
+      </div>
+      <div class="nav-item" onclick="switchPage('map')" id="nav-map">
+        <i class="fas fa-map-marked-alt"></i><span>Mapa</span>
+      </div>
+      <div class="nav-item" onclick="switchPage('reports')" id="nav-reports">
+        <i class="fas fa-file-alt"></i><span>Reportes</span>
+        <div class="nav-badge" id="reportsBadge"></div>
+      </div>
+      <div class="nav-item" onclick="switchPage('chat')" id="nav-chat">
+        <i class="fas fa-comments"></i><span>Chat</span>
+        <div class="nav-badge show" id="chatNavBadge">3</div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /app -->
+
+<!-- AGENT DETAIL MODAL -->
+<div class="modal-overlay" id="agentModal">
+  <div class="modal-sheet" style="position:relative">
+    <div class="modal-handle"></div>
+    <button class="modal-close" onclick="closeModal('agentModal')"><i class="fas fa-times"></i></button>
+    <div id="agentModalContent" style="padding:16px 20px 24px"></div>
+  </div>
+</div>
+
+<!-- EMERGENCY MODAL -->
+<div class="modal-overlay" id="emergencyModal">
+  <div class="modal-sheet" style="position:relative">
+    <div class="modal-handle"></div>
+    <button class="modal-close" onclick="closeModal('emergencyModal')"><i class="fas fa-times"></i></button>
+    <div class="modal-title" style="color:var(--danger)"><i class="fas fa-exclamation-triangle"></i> ALERTA DE EMERGENCIA</div>
+    <div style="padding:0 20px 24px;display:flex;flex-direction:column;gap:12px">
+      <button style="padding:16px;border-radius:12px;border:2px solid var(--danger);background:rgba(255,45,85,0.1);color:var(--danger);font-size:16px;font-weight:700;cursor:pointer;font-family:'Rajdhani',sans-serif;letter-spacing:2px" onclick="sendEmergency('sos')">
+        <i class="fas fa-sos"></i> SOS — AYUDA INMEDIATA
+      </button>
+      <button style="padding:14px;border-radius:12px;border:2px solid var(--warning);background:rgba(255,214,10,0.08);color:var(--warning);font-size:14px;font-weight:700;cursor:pointer;font-family:'Rajdhani',sans-serif;letter-spacing:2px" onclick="sendEmergency('intrusion')">
+        <i class="fas fa-user-slash"></i> INTRUSO DETECTADO
+      </button>
+      <button style="padding:14px;border-radius:12px;border:2px solid var(--accent2);background:rgba(255,107,0,0.08);color:var(--accent2);font-size:14px;font-weight:700;cursor:pointer;font-family:'Rajdhani',sans-serif;letter-spacing:2px" onclick="sendEmergency('fire')">
+        <i class="fas fa-fire"></i> INCENDIO / EMERGENCIA
+      </button>
+      <button style="padding:14px;border-radius:12px;border:2px solid var(--accent);background:rgba(0,212,255,0.08);color:var(--accent);font-size:14px;font-weight:700;cursor:pointer;font-family:'Rajdhani',sans-serif;letter-spacing:2px" onclick="sendEmergency('medical')">
+        <i class="fas fa-heart-pulse"></i> EMERGENCIA MÉDICA
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- INVENTORY MODAL -->
+<div class="modal-overlay" id="inventoryModal">
+  <div class="modal-sheet" style="position:relative">
+    <div class="modal-handle"></div>
+    <button class="modal-close" onclick="closeModal('inventoryModal')"><i class="fas fa-times"></i></button>
+    <div class="modal-title">Agregar Inventario</div>
+    <div style="padding:0 20px 24px">
+      <div class="form-group"><label class="form-label">Nombre del Equipo</label><input type="text" class="form-input" id="invName" placeholder="Ej: Radio Motorola..."></div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Cantidad</label><input type="number" class="form-input" id="invQty" value="1" min="1"></div>
+        <div class="form-group"><label class="form-label">Estado</label>
+          <select class="form-input" id="invStatus">
+            <option>Operativo</option><option>En Reparación</option><option>Dañado</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-group"><label class="form-label">Responsable</label><input type="text" class="form-input" id="invResponsible" placeholder="Nombre del responsable"></div>
+      <button class="btn-primary" onclick="addInventoryItem()">AGREGAR</button>
+    </div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div id="toast"></div>
+
+<!-- SCRIPTS -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
